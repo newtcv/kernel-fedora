@@ -1,0 +1,125 @@
+#!/usr/bin/bash
+# rnread-kernel-lqx
+
+### UNCOMMENT THIS LINE BELOW FOR DEBUG OUTPUT #####
+# set -x
+# echo ${1}
+####################################################
+
+# GlobalArg
+arg0=${1}
+
+# "Product Name"
+prodName="kernel-lqx"
+# Colloquial Name
+colName="lqx"
+# Variant
+#prodVarName="" NULL
+# External name
+if [ ! -z ${prodVarName} ] ; then
+	externName=${prodName}-${prodVarName}
+else
+	externName=${prodName}
+fi
+
+warnRoot() {
+	if [[ ${UID} = 0 ]] ; then
+		warnMessage="WARNING: Running rnread as root is not recommended\n\n";
+	else
+		warnMessage="";
+	fi
+	printf "${warnMessage}"
+}
+
+showHelp() {
+	echo -e "rnread -- Reader for News@rmnscnce";
+	echo -e "for ${externName}";
+	echo -e "\nUsage:";
+	echo -e 'rnread-'${externName}' [latest|list|$DATE(yyyymmdd)|ckver|help]'"\n";
+	echo -e "(no argument) | latest\t\tShow the latest news item";
+	echo -e "list\t\t\t\tList news items by their dates";
+	echo -e '$DATE(yyyymmdd)'"\t\t\tShow the news item for that date. Will only accept the exact dates listed in "'`list` subcommand';
+	echo -e "ckver\t\t\t\tCheck if the latest version is running";
+	echo -e "help\t\t\t\tShow this help message";
+}
+
+testLocalVer() {
+	suffixDist=$(rpm -E %dist)
+	localVer=$(uname -r)
+	if [ ! -z ${prodVarName} ] ; then
+		remoteVer=$(curl -s https://gitlab.com/rmnscnce/news/-/raw/master/public/reader/${colName}/${prodVarName}.ver);
+	else
+		remoteVer=$(curl -s https://gitlab.com/rmnscnce/news/-/raw/master/public/reader/${colName}/ver);
+	fi
+
+	if [[ ${localVer} == ${remoteVer}* ]] ; then
+		echo -e "You are running the latest version of ${externName}";
+	else
+		echo -e "You're not running the latest version of ${externName}\nThe latest version available is ${remoteVer}${suffixDist}. Update to get the latest features and bug fixes";
+	fi
+}
+
+listItems() {
+	itemList=$(curl -s https://gitlab.com/rmnscnce/news/-/raw/master/public/reader/${colName}/items.list)
+
+	echo -e "${itemList}"
+}
+
+showItemLatest() {
+	latestItemDate=$(curl -s https://gitlab.com/rmnscnce/news/-/raw/master/public/reader/${colName}/items.list | head -n 1)
+	latestItemUrl="https://gitlab.com/rmnscnce/news/-/raw/master/public/reader/${colName}/items/${latestItemDate}"
+
+	echo -e "Latest news for\n>> ${prodName} <<\n---\n"
+	curl -s ${latestItemUrl}
+}
+
+showItemQuery() {
+	queryItemUrl="https://gitlab.com/rmnscnce/news/-/raw/master/public/reader/${colName}/items/${arg0}"
+
+	echo -e "${arg0} news for\n>> ${prodName} <<\n---\n"
+        curl -s ${queryItemUrl}
+}
+
+###
+main() {
+	warnRoot
+	case ${1} in
+		latest)
+			showItemLatest;
+			echo -e "\n---\n";
+			testLocalVer;
+			exit $?
+			;;
+		list)
+			listItems;
+			exit $?
+			;;
+		ckver)
+			testLocalVer;
+			exit $?
+			;;
+		help)
+			showHelp;
+			exit $?
+			;;
+		'')
+                        showItemLatest;
+                        echo -e "\n---\n";
+                        testLocalVer;
+                        exit $?
+                        ;;
+		*)
+			if showItemQuery | grep -q "!DOCTYPE" ; then
+				echo -e "ERROR: Invalid argument. Please refer to the help below:\n-----"
+				showHelp;
+				exit 255;
+			else
+				showItemQuery
+				exit 0;
+			fi
+			;;
+	esac
+}
+
+main ${@}
+exit $?
